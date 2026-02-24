@@ -1,8 +1,8 @@
 import fs from "fs";
 
-const API_KEY = process.env.BANKR_API_KEY;
-
 async function scanTokens() {
+  console.log("🔎 Scanning Base trending tokens...");
+
   const res = await fetch(
     "https://api.dexscreener.com/latest/dex/search?q=base"
   );
@@ -11,37 +11,34 @@ async function scanTokens() {
   return data.pairs.slice(0, 5);
 }
 
-async function executeBankrTrade(tokenSymbol) {
-  console.log("🏦 Executing Bankr trade...");
+function pickToken(tokens) {
+  const pick = tokens[Math.floor(Math.random() * tokens.length)];
 
-  const res = await fetch("https://api.bankr.bot/swap", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      chain: "base",
-      tokenIn: "ETH",
-      tokenOut: tokenSymbol,
-      amount: "0.001",
-    }),
-  });
-
-  const data = await res.json();
-  console.log("🏦 Bankr result:", data);
-
-  return data;
+  return {
+    symbol: pick.baseToken.symbol,
+    address: pick.baseToken.address,
+    price: pick.priceUsd,
+    liquidity: pick.liquidity?.usd || 0,
+  };
 }
 
-function saveTrade(token, result) {
-  const trade = {
-    token,
-    result,
+function simulateTrade(token) {
+  console.log("🎯 Target:", token.symbol);
+
+  const pnl = (Math.random() * 20 - 10).toFixed(2);
+
+  return {
+    token: token.symbol,
+    address: token.address,
+    price: token.price,
+    liquidity: token.liquidity,
+    pnl: pnl + "%",
     date: new Date().toISOString(),
   };
+}
 
-  console.log("🐾 Trade saved:", trade);
+function saveTrade(trade) {
+  console.log("🐾 Saving trade...");
 
   const file = "trades.json";
 
@@ -52,19 +49,20 @@ function saveTrade(token, result) {
 
   trades.push(trade);
   fs.writeFileSync(file, JSON.stringify(trades, null, 2));
+
+  console.log("✅ Trade saved");
 }
 
 export async function runAgent() {
   console.log("🐾 CLAWSER HUNT START");
 
   const tokens = await scanTokens();
-  const pick = tokens[Math.floor(Math.random() * tokens.length)];
 
-  const symbol = pick.baseToken.symbol;
+  const target = pickToken(tokens);
 
-  console.log("🎯 Target token:", symbol);
+  const trade = simulateTrade(target);
 
-  const result = await executeBankrTrade(symbol);
+  console.log("📊 Trade result:", trade);
 
-  saveTrade(symbol, result);
+  saveTrade(trade);
 }
