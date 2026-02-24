@@ -1,6 +1,8 @@
 import fs from "fs";
 import path from "path";
 
+export const runtime = "nodejs";
+
 const file = path.join(process.cwd(), "trades.json");
 
 export async function GET() {
