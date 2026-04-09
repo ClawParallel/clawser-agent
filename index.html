@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CLAWSER — Autonomous AI Onchain Hunter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --blood: #ff1a1a;
+    --claw: #ff4400;
+    --amber: #ffaa00;
+    --dim: #ff440022;
+    --grid: #ff44000a;
+    --bg: #030303;
+    --surface: #0a0a0a;
+    --border: #1a1a1a;
+    --text: #d0ccc8;
+    --muted: #666;
+    --green: #00ff88;
+    --green-dim: #00ff8815;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  ::selection { background: var(--claw); color: #000; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    cursor: crosshair;
+  }
+
+  /* SCAN LINE OVERLAY */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.08) 2px,
+      rgba(0,0,0,0.08) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* GRID BG */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* CUSTOM CURSOR */
+  .cursor-dot {
+    width: 8px; height: 8px;
+    background: var(--claw);
+    border-radius: 50%;
+    position: fixed;
+    pointer-events: none;
+    z-index: 99999;
+    transition: transform 0.1s;
+    box-shadow: 0 0 12px var(--claw), 0 0 24px var(--claw);
+  }
+  .cursor-ring {
+    width: 30px; height: 30px;
+    border: 1px solid var(--claw);
+    border-radius: 50%;
+    position: fixed;
+    pointer-events: none;
+    z-index: 99998;
+    transition: all 0.15s ease;
+    opacity: 0.5;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 1000;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 48px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(3,3,3,0.9);
+    backdrop-filter: blur(20px);
+  }
+
+  .nav-logo {
+    font-family: 'Orbitron', monospace;
+    font-weight: 900;
+    font-size: 20px;
+    color: var(--claw);
+    letter-spacing: 4px;
+    text-shadow: 0 0 20px var(--claw);
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 32px;
+    list-style: none;
+  }
+
+  .nav-links a {
+    color: var(--muted);
+    text-decoration: none;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--claw); }
+
+  .nav-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--green);
+  }
+
+  .pulse-dot {
+    width: 6px; height: 6px;
+    background: var(--green);
+    border-radius: 50%;
+    animation: pulse 1.5s infinite;
+    box-shadow: 0 0 8px var(--green);
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  /* HERO */
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 120px 48px 80px;
+    overflow: hidden;
+    z-index: 1;
+  }
+
+  .hero-bg-glow {
+    position: absolute;
+    top: -200px; left: -200px;
+    width: 700px; height: 700px;
+    background: radial-gradient(circle, rgba(255,68,0,0.08) 0%, transparent 70%);
+    animation: breathe 4s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  .hero-bg-glow2 {
+    position: absolute;
+    bottom: -100px; right: -100px;
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, rgba(255,26,26,0.05) 0%, transparent 70%);
+    animation: breathe 6s ease-in-out infinite reverse;
+    pointer-events: none;
+  }
+
+  @keyframes breathe {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.6; }
+  }
+
+  .hero-eyebrow {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 4px;
+    color: var(--claw);
+    text-transform: uppercase;
+    margin-bottom: 24px;
+    opacity: 0;
+    animation: fadeUp 0.6s 0.2s forwards;
+  }
+
+  .hero-title {
+    font-family: 'Orbitron', monospace;
+    font-weight: 900;
+    font-size: clamp(64px, 10vw, 120px);
+    line-height: 0.9;
+    letter-spacing: -2px;
+    margin-bottom: 8px;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.3s forwards;
+  }
+
+  .hero-title span {
+    display: block;
+    color: var(--claw);
+    text-shadow: 0 0 60px rgba(255,68,0,0.4), 0 0 120px rgba(255,68,0,0.15);
+    position: relative;
+  }
+
+  /* GLITCH */
+  .hero-title span::before,
+  .hero-title span::after {
+    content: 'CLAWSER';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+  }
+  .hero-title span::before {
+    color: var(--blood);
+    animation: glitch1 3s infinite;
+    clip-path: polygon(0 0, 100% 0, 100% 35%, 0 35%);
+  }
+  .hero-title span::after {
+    color: #00ffff;
+    animation: glitch2 3s infinite;
+    clip-path: polygon(0 65%, 100% 65%, 100% 100%, 0 100%);
+    opacity: 0.4;
+  }
+
+  @keyframes glitch1 {
+    0%, 90%, 100% { transform: translateX(0); opacity: 0; }
+    92% { transform: translateX(-4px); opacity: 1; }
+    94% { transform: translateX(4px); opacity: 1; }
+    96% { transform: translateX(-2px); opacity: 1; }
+    98% { transform: translateX(0); opacity: 0; }
+  }
+  @keyframes glitch2 {
+    0%, 88%, 100% { transform: translateX(0); opacity: 0; }
+    90% { transform: translateX(3px); opacity: 0.4; }
+    92% { transform: translateX(-3px); opacity: 0.4; }
+    94% { transform: translateX(0); opacity: 0; }
+  }
+
+  .hero-sub {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: clamp(18px, 2.5vw, 26px);
+    font-weight: 300;
+    color: var(--muted);
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    margin-bottom: 48px;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.5s forwards;
+  }
+
+  .hero-stats {
+    display: flex;
+    gap: 48px;
+    margin-bottom: 56px;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.7s forwards;
+  }
+
+  .stat-item {
+    border-left: 2px solid var(--claw);
+    padding-left: 16px;
+  }
+
+  .stat-value {
+    font-family: 'Orbitron', monospace;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--claw);
+    line-height: 1;
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+
+  .stat-unit {
+    font-size: 14px;
+    color: var(--muted);
+    font-family: 'Share Tech Mono', monospace;
+  }
+
+  .stat-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  .hero-cta {
+    display: flex;
+    gap: 16px;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.9s forwards;
+  }
+
+  .btn-primary {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 14px 32px;
+    background: var(--claw);
+    color: #000;
+    border: none;
+    cursor: pointer;
+    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+    transition: all 0.2s;
+    font-weight: 700;
+    text-decoration: none;
+    display: inline-block;
+  }
+  .btn-primary:hover {
+    background: var(--blood);
+    box-shadow: 0 0 30px rgba(255,68,0,0.5);
+    transform: translateY(-2px);
+  }
+
+  .btn-outline {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 14px 32px;
+    background: transparent;
+    color: var(--claw);
+    border: 1px solid var(--claw);
+    cursor: pointer;
+    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-block;
+  }
+  .btn-outline:hover {
+    background: var(--dim);
+    box-shadow: 0 0 20px rgba(255,68,0,0.2);
+  }
+
+  /* SCROLL INDICATOR */
+  .scroll-hint {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    opacity: 0;
+    animation: fadeIn 1s 1.5s forwards;
+  }
+  .scroll-hint span {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  .scroll-line {
+    width: 1px;
+    height: 50px;
+    background: linear-gradient(to bottom, var(--claw), transparent);
+    animation: scrollPulse 2s infinite;
+  }
+  @keyframes scrollPulse {
+    0%, 100% { transform: scaleY(1); opacity: 1; }
+    50% { transform: scaleY(0.5); opacity: 0.5; }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  /* SECTION WRAPPER */
+  .section {
+    position: relative;
+    z-index: 1;
+    padding: 80px 48px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .section-eyebrow {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 4px;
+    color: var(--claw);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .section-title {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(28px, 4vw, 44px);
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 40px;
+    line-height: 1.1;
+  }
+
+  .section-title em {
+    color: var(--claw);
+    font-style: normal;
+  }
+
+  /* DIVIDER */
+  .divider {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--claw), transparent);
+    margin: 0;
+    opacity: 0.3;
+  }
+
+  /* ABOUT */
+  .about-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: start;
+  }
+
+  .about-text {
+    font-size: 18px;
+    line-height: 1.8;
+    color: var(--text);
+    font-weight: 300;
+  }
+
+  .about-text strong {
+    color: var(--claw);
+    font-weight: 700;
+  }
+
+  .feature-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .feature-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 2px solid var(--claw);
+    transition: all 0.3s;
+  }
+  .feature-item:hover {
+    background: #0f0f0f;
+    border-color: var(--claw);
+    box-shadow: inset 0 0 20px rgba(255,68,0,0.03);
+    transform: translateX(4px);
+  }
+
+  .feature-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .feature-name {
+    font-family: 'Orbitron', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--claw);
+    letter-spacing: 2px;
+    margin-bottom: 4px;
+  }
+
+  .feature-desc {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* STATUS PANEL */
+  .status-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .status-card {
+    padding: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .status-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 2px;
+    background: var(--claw);
+  }
+
+  .status-card.green::before { background: var(--green); }
+  .status-card.amber::before { background: var(--amber); }
+
+  .status-card-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .status-card-value {
+    font-family: 'Orbitron', monospace;
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .status-card-value.online { color: var(--green); }
+  .status-card-value.active { color: var(--claw); }
+
+  /* TERMINAL */
+  .terminal {
+    background: #080808;
+    border: 1px solid var(--border);
+    border-top: 2px solid var(--claw);
+    padding: 24px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+  }
+
+  .terminal-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .term-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+  .term-dot.r { background: #ff5f57; }
+  .term-dot.y { background: #ffbd2e; }
+  .term-dot.g { background: #28ca41; }
+
+  .term-title {
+    margin-left: 8px;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 2px;
+  }
+
+  .term-line {
+    margin-bottom: 8px;
+    line-height: 1.6;
+    opacity: 0;
+    animation: termType 0.3s forwards;
+  }
+
+  .term-line:nth-child(2) { animation-delay: 0.5s; }
+  .term-line:nth-child(3) { animation-delay: 1s; }
+  .term-line:nth-child(4) { animation-delay: 1.5s; }
+  .term-line:nth-child(5) { animation-delay: 2s; }
+  .term-line:nth-child(6) { animation-delay: 2.5s; }
+  .term-line:nth-child(7) { animation-delay: 3s; }
+  .term-line:nth-child(8) { animation-delay: 3.5s; }
+
+  @keyframes termType {
+    from { opacity: 0; transform: translateX(-4px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .term-prompt { color: var(--claw); }
+  .term-cmd { color: var(--text); }
+  .term-out { color: var(--green); }
+  .term-warn { color: var(--amber); }
+  .term-info { color: var(--muted); }
+
+  .term-cursor {
+    display: inline-block;
+    width: 8px;
+    height: 14px;
+    background: var(--claw);
+    animation: blink 1s infinite;
+    vertical-align: middle;
+    margin-left: 2px;
+  }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+  /* LIVE FEED */
+  .feed-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+
+  .feed-live {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--green);
+    letter-spacing: 2px;
+    background: var(--green-dim);
+    padding: 6px 14px;
+    border: 1px solid rgba(0,255,136,0.2);
+  }
+
+  .feed-item {
+    margin-bottom: 12px;
+    padding: 20px 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid transparent;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 20px;
+    align-items: center;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .feed-item::after {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,68,0,0.03), transparent);
+    transition: left 0.4s;
+  }
+  .feed-item:hover::after { left: 100%; }
+  .feed-item:hover { border-color: var(--border); background: #0d0d0d; }
+
+  .feed-item.win { border-left-color: var(--green); }
+  .feed-item.loss { border-left-color: var(--blood); }
+  .feed-item.active { border-left-color: var(--amber); }
+
+  .feed-index {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    width: 30px;
+  }
+
+  .feed-token {
+    font-family: 'Orbitron', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+
+  .feed-meta {
+    display: flex;
+    gap: 16px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .feed-pnl {
+    font-family: 'Orbitron', monospace;
+    font-size: 16px;
+    font-weight: 700;
+    text-align: right;
+  }
+  .feed-pnl.pos { color: var(--green); }
+  .feed-pnl.neg { color: var(--blood); }
+  .feed-pnl.pend { color: var(--amber); }
+
+  .feed-time {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-align: right;
+  }
+
+  /* ARCHITECTURE */
+  .arch-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+    background: var(--border);
+    border: 1px solid var(--border);
+  }
+
+  .arch-node {
+    background: var(--surface);
+    padding: 28px 24px;
+    position: relative;
+    transition: all 0.3s;
+  }
+  .arch-node:hover {
+    background: #0e0e0e;
+    z-index: 2;
+  }
+
+  .arch-num {
+    font-family: 'Orbitron', monospace;
+    font-size: 40px;
+    font-weight: 900;
+    color: var(--border);
+    line-height: 1;
+    margin-bottom: 12px;
+    transition: color 0.3s;
+  }
+  .arch-node:hover .arch-num { color: var(--dim); }
+
+  .arch-node-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--claw);
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+  }
+
+  .arch-node-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* TOKENOMICS / METRICS */
+  .metrics-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+
+  .metric-card {
+    padding: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    text-align: center;
+    position: relative;
+    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  }
+
+  .metric-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 0%, rgba(255,68,0,0.05) 0%, transparent 70%);
+  }
+
+  .metric-val {
+    font-family: 'Orbitron', monospace;
+    font-size: 26px;
+    font-weight: 900;
+    color: var(--claw);
+    margin-bottom: 4px;
+    counter-reset: n;
+  }
+
+  .metric-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  /* FOOTER */
+  footer {
+    position: relative;
+    z-index: 1;
+    border-top: 1px solid var(--border);
+    padding: 48px;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 32px;
+  }
+
+  .footer-logo {
+    font-family: 'Orbitron', monospace;
+    font-size: 28px;
+    font-weight: 900;
+    color: var(--claw);
+    text-shadow: 0 0 30px rgba(255,68,0,0.3);
+    letter-spacing: 4px;
+  }
+
+  .footer-copy {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.8;
+  }
+
+  .footer-links {
+    display: flex;
+    justify-content: flex-end;
+    gap: 24px;
+  }
+
+  .footer-links a {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-decoration: none;
+    text-transform: uppercase;
+    transition: color 0.2s;
+  }
+  .footer-links a:hover { color: var(--claw); }
+
+  /* NOISE OVERLAY */
+  .noise {
+    position: fixed;
+    inset: 0;
+    opacity: 0.025;
+    pointer-events: none;
+    z-index: 9998;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    background-size: 256px;
+  }
+
+  /* RESPONSIVE */
+  @media (max-width: 768px) {
+    nav { padding: 16px 24px; }
+    .nav-links { display: none; }
+    .hero { padding: 100px 24px 60px; }
+    .hero-stats { gap: 24px; flex-wrap: wrap; }
+    .section { padding: 60px 24px; }
+    .about-grid { grid-template-columns: 1fr; }
+    .status-grid { grid-template-columns: 1fr 1fr; }
+    .arch-grid { grid-template-columns: 1fr; }
+    .metrics-row { grid-template-columns: 1fr 1fr; }
+    footer { grid-template-columns: 1fr; text-align: center; }
+    .footer-links { justify-content: center; }
+  }
+
+  /* COUNTER ANIMATION */
+  .count-up { transition: all 0.5s; }
+
+  /* HUNT TAG */
+  .tag {
+    display: inline-block;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    padding: 3px 8px;
+    text-transform: uppercase;
+  }
+  .tag-win { background: rgba(0,255,136,0.1); color: var(--green); border: 1px solid rgba(0,255,136,0.2); }
+  .tag-loss { background: rgba(255,26,26,0.1); color: var(--blood); border: 1px solid rgba(255,26,26,0.2); }
+  .tag-hunting { background: rgba(255,170,0,0.1); color: var(--amber); border: 1px solid rgba(255,170,0,0.2); }
+</style>
+</head>
+<body>
+
+<div class="noise"></div>
+<div class="cursor-dot" id="cursorDot"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">CLAWSER</div>
+  <ul class="nav-links">
+    <li><a href="#about">Protocol</a></li>
+    <li><a href="#status">Status</a></li>
+    <li><a href="#feed">Hunt Feed</a></li>
+    <li><a href="#arch">Architecture</a></li>
+  </ul>
+  <div class="nav-status">
+    <div class="pulse-dot"></div>
+    AGENT ONLINE
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg-glow"></div>
+  <div class="hero-bg-glow2"></div>
+
+  <div class="hero-eyebrow">// AUTONOMOUS ONCHAIN PREDATOR — v2.1.0</div>
+
+  <h1 class="hero-title">
+    <span>CLAWSER</span>
+  </h1>
+  <p class="hero-sub">AI Hunter &nbsp;/&nbsp; Onchain Executor &nbsp;/&nbsp; No Mercy</p>
+
+  <div class="hero-stats">
+    <div class="stat-item">
+      <div class="stat-value"><span id="stat1">2,847</span><span class="stat-unit">+</span></div>
+      <div class="stat-label">Hunts Executed</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value"><span id="stat2">94.3</span><span class="stat-unit">%</span></div>
+      <div class="stat-label">Signal Accuracy</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value"><span class="stat-unit">$</span><span id="stat3">1.24M</span></div>
+      <div class="stat-label">Total Volume</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value"><span id="stat4">18</span><span class="stat-unit">ms</span></div>
+      <div class="stat-label">Avg Execution</div>
+    </div>
+  </div>
+
+  <div class="hero-cta">
+    <a href="#feed" class="btn-primary">WATCH LIVE HUNTS</a>
+    <a href="#arch" class="btn-outline">HOW IT WORKS</a>
+  </div>
+
+  <div class="scroll-hint">
+    <span>Scroll</span>
+    <div class="scroll-line"></div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ABOUT -->
+<section class="section" id="about">
+  <div class="section-eyebrow">// 01 — PROTOCOL</div>
+  <h2 class="section-title">What is <em>CLAWSER</em>?</h2>
+
+  <div class="about-grid">
+    <div>
+      <p class="about-text">
+        CLAWSER is a fully <strong>autonomous AI agent</strong> deployed onchain to hunt, analyze, and execute trades across multiple EVM-compatible networks — <strong>without human intervention</strong>.
+        <br><br>
+        Powered by a proprietary neural signal engine, CLAWSER continuously monitors <strong>mempool activity, liquidity shifts, wallet clustering, and social velocity</strong> to identify high-probability targets before they move.
+        <br><br>
+        When a target is locked, CLAWSER executes with <strong>sub-20ms precision</strong> — entering, managing, and exiting positions based on real-time onchain intelligence. Every hunt is logged immutably to the chain.
+      </p>
+    </div>
+
+    <div class="feature-list">
+      <div class="feature-item">
+        <div class="feature-icon">🕵️</div>
+        <div>
+          <div class="feature-name">MEMPOOL SURVEILLANCE</div>
+          <div class="feature-desc">Real-time scanning of pending transactions to front-run market moves before confirmation.</div>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🧠</div>
+        <div>
+          <div class="feature-name">NEURAL SIGNAL ENGINE</div>
+          <div class="feature-desc">Multi-layer AI model trained on 3+ years of onchain behavioral data across 12 chains.</div>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">⚡</div>
+        <div>
+          <div class="feature-name">ZERO-LATENCY EXECUTION</div>
+          <div class="feature-desc">Direct RPC integration bypasses DEX UI layers for atomic execution at block speed.</div>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🔒</div>
+        <div>
+          <div class="feature-name">AUTONOMOUS RISK GUARD</div>
+          <div class="feature-desc">Self-calibrating stop-loss and position sizing prevent catastrophic drawdowns automatically.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- STATUS -->
+<section class="section" id="status">
+  <div class="section-eyebrow">// 02 — SYSTEM STATUS</div>
+  <h2 class="section-title">Agent <em>Diagnostics</em></h2>
+
+  <div class="status-grid">
+    <div class="status-card green">
+      <div class="status-card-label">Core Agent</div>
+      <div class="status-card-value online">
+        <div class="pulse-dot"></div>
+        ONLINE
+      </div>
+    </div>
+    <div class="status-card">
+      <div class="status-card-label">Hunt Mode</div>
+      <div class="status-card-value active">AGGRESSIVE</div>
+    </div>
+    <div class="status-card amber">
+      <div class="status-card-label">Active Targets</div>
+      <div class="status-card-value" style="color:var(--amber)" id="activeTargets">7</div>
+    </div>
+    <div class="status-card green">
+      <div class="status-card-label">Network</div>
+      <div class="status-card-value online">BASE + ETH</div>
+    </div>
+    <div class="status-card">
+      <div class="status-card-label">Signal Engine</div>
+      <div class="status-card-value active">RUNNING</div>
+    </div>
+    <div class="status-card green">
+      <div class="status-card-label">Uptime</div>
+      <div class="status-card-value online" id="uptime">99.97%</div>
+    </div>
+  </div>
+
+  <!-- TERMINAL -->
+  <div class="terminal">
+    <div class="terminal-bar">
+      <div class="term-dot r"></div>
+      <div class="term-dot y"></div>
+      <div class="term-dot g"></div>
+      <span class="term-title">CLAWSER — AGENT CONSOLE</span>
+    </div>
+    <div class="term-line"><span class="term-prompt">clawser@mainnet:~$</span> <span class="term-cmd">agent --status --verbose</span></div>
+    <div class="term-line"><span class="term-out">✓ Neural engine loaded: model_v2.1.0_onchain.ckpt</span></div>
+    <div class="term-line"><span class="term-out">✓ Connected to: Base, Ethereum, Arbitrum</span></div>
+    <div class="term-line"><span class="term-warn">⚠ 7 high-confidence targets queued — executing in order</span></div>
+    <div class="term-line"><span class="term-out">✓ Risk parameters: MAX_SLIP=0.8% | STOP=-12% | SIZE=auto</span></div>
+    <div class="term-line"><span class="term-out">✓ Mempool scanner: 14,832 tx/s monitored</span></div>
+    <div class="term-line"><span class="term-info"># Hunting mode: AGGRESSIVE | Last hunt: 3s ago</span></div>
+    <div class="term-line"><span class="term-prompt">clawser@mainnet:~$</span> <span class="term-cursor"></span></div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- LIVE FEED -->
+<section class="section" id="feed">
+  <div class="feed-header">
+    <div>
+      <div class="section-eyebrow">// 03 — HUNT FEED</div>
+      <h2 class="section-title" style="margin-bottom:0">Live <em>Hunt Log</em></h2>
+    </div>
+    <div class="feed-live">
+      <div class="pulse-dot"></div>
+      LIVE
+    </div>
+  </div>
+
+  <div id="liveFeed">
+    <!-- populated by JS -->
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ARCHITECTURE -->
+<section class="section" id="arch">
+  <div class="section-eyebrow">// 04 — ARCHITECTURE</div>
+  <h2 class="section-title">How CLAWSER <em>Hunts</em></h2>
+
+  <div class="arch-grid">
+    <div class="arch-node">
+      <div class="arch-num">01</div>
+      <div class="arch-node-title">SCAN</div>
+      <div class="arch-node-desc">CLAWSER's surveillance layer monitors mempool, DEX pools, wallet clusters, and social sentiment in real-time. Every signal is scored and ranked by confidence.</div>
+    </div>
+    <div class="arch-node">
+      <div class="arch-num">02</div>
+      <div class="arch-node-title">TARGET</div>
+      <div class="arch-node-desc">The neural signal engine cross-references multi-dimensional data to lock high-probability targets. False positives are filtered by adversarial rejection layers.</div>
+    </div>
+    <div class="arch-node">
+      <div class="arch-num">03</div>
+      <div class="arch-node-title">EXECUTE</div>
+      <div class="arch-node-desc">Atomic multi-hop transactions are constructed and fired directly to validators. Entry, sizing, and slippage are calculated autonomously in-flight.</div>
+    </div>
+    <div class="arch-node">
+      <div class="arch-num">04</div>
+      <div class="arch-node-title">MANAGE</div>
+      <div class="arch-node-desc">Active positions are monitored every block. Dynamic stop-loss adjusts to volatility. Partial takes are executed when momentum signals degrade.</div>
+    </div>
+    <div class="arch-node">
+      <div class="arch-num">05</div>
+      <div class="arch-node-title">EXIT</div>
+      <div class="arch-node-desc">Exit triggers fire when price targets, time windows, or reversal patterns are detected. All exits are gas-optimized for maximum net return.</div>
+    </div>
+    <div class="arch-node">
+      <div class="arch-num">06</div>
+      <div class="arch-node-title">LEARN</div>
+      <div class="arch-node-desc">Every hunt — win or loss — feeds back into the training pipeline. CLAWSER continuously improves signal accuracy from live market data.</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- METRICS -->
+<section class="section">
+  <div class="section-eyebrow">// 05 — PERFORMANCE</div>
+  <h2 class="section-title">Hunt <em>Metrics</em></h2>
+
+  <div class="metrics-row">
+    <div class="metric-card">
+      <div class="metric-val" id="m1">68.4%</div>
+      <div class="metric-label">Win Rate</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-val" id="m2">3.2x</div>
+      <div class="metric-label">Avg Risk/Reward</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-val" id="m3">+$1.24M</div>
+      <div class="metric-label">Total PnL</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-val" id="m4">12</div>
+      <div class="metric-label">Chains Monitored</div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">CLAWSER</div>
+  <div class="footer-copy">
+    AUTONOMOUS AI ONCHAIN PREDATOR<br>
+    © 2025 CLAWSER PROTOCOL — ALL HUNTS IMMUTABLE
+  </div>
+  <div class="footer-links">
+    <a href="#">Twitter</a>
+    <a href="#">Telegram</a>
+    <a href="#">Docs</a>
+    <a href="#">GitHub</a>
+  </div>
+</footer>
+
+<script>
+  // CUSTOM CURSOR
+  const dot = document.getElementById('cursorDot');
+  const ring = document.getElementById('cursorRing');
+  let mx = 0, my = 0, rx = 0, ry = 0;
+
+  document.addEventListener('mousemove', e => {
+    mx = e.clientX; my = e.clientY;
+    dot.style.left = mx - 4 + 'px';
+    dot.style.top = my - 4 + 'px';
+  });
+
+  function animRing() {
+    rx += (mx - rx - 15) * 0.15;
+    ry += (my - ry - 15) * 0.15;
+    ring.style.left = rx + 'px';
+    ring.style.top = ry + 'px';
+    requestAnimationFrame(animRing);
+  }
+  animRing();
+
+  // LIVE FEED SIMULATION
+  const tokens = [
+    '$PEPE','$WIF','$BONK','$FLOKI','$DOGE','$SHIB','$MOG','$TURBO',
+    '$NEIRO','$POPCAT','$BRETT','$PONKE','$BOME','$SLERF','$PNUT',
+    '$ACT','$GOAT','$MOODENG','$CHILLGUY','$FWOG'
+  ];
+
+  const chains = ['Base','Ethereum','Arbitrum','Solana','Polygon'];
+
+  const strategies = [
+    'Mempool snipe','Whale follow','Liquidity gap fill','Momentum entry','Social spike play'
+  ];
+
+  function randomPnl() {
+    const win = Math.random() > 0.32;
+    if (win) {
+      const v = (Math.random() * 180 + 10).toFixed(1);
+      return { val: `+$${v}`, cls: 'pos', tag: 'win', type: 'win' };
+    } else {
+      const v = (Math.random() * 40 + 5).toFixed(1);
+      return { val: `-$${v}`, cls: 'neg', tag: 'loss', type: 'loss' };
+    }
+  }
+
+  function timeAgo(s) {
+    if (s < 60) return `${s}s ago`;
+    if (s < 3600) return `${Math.floor(s/60)}m ago`;
+    return `${Math.floor(s/3600)}h ago`;
+  }
+
+  let hunts = [];
+
+  function generateHunt(secondsAgo) {
+    const pnl = secondsAgo < 20 ? null : randomPnl();
+    return {
+      token: tokens[Math.floor(Math.random() * tokens.length)],
+      chain: chains[Math.floor(Math.random() * chains.length)],
+      strategy: strategies[Math.floor(Math.random() * strategies.length)],
+      pnl,
+      secondsAgo,
+      size: (Math.random() * 4 + 0.2).toFixed(2)
+    };
+  }
+
+  // seed initial data
+  for (let i = 0; i < 8; i++) {
+    hunts.push(generateHunt(i * 45 + Math.floor(Math.random() * 30)));
+  }
+
+  function renderFeed() {
+    const feed = document.getElementById('liveFeed');
+    feed.innerHTML = hunts.map((h, i) => {
+      const pending = !h.pnl;
+      const type = pending ? 'active' : h.pnl.type;
+      const tagHtml = pending
+        ? `<span class="tag tag-hunting">HUNTING</span>`
+        : h.pnl.type === 'win'
+          ? `<span class="tag tag-win">WIN</span>`
+          : `<span class="tag tag-loss">LOSS</span>`;
+
+      return `
+        <div class="feed-item ${type}" style="animation: fadeUp 0.3s ${i * 0.04}s both">
+          <div class="feed-index">#${String(hunts.length - i).padStart(3,'0')}</div>
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+              <div class="feed-token">${h.token}</div>
+              ${tagHtml}
+            </div>
+            <div class="feed-meta">
+              <span>⛓ ${h.chain}</span>
+              <span>⚡ ${h.strategy}</span>
+              <span>📦 ${h.size} ETH</span>
+              <span>🕒 ${timeAgo(h.secondsAgo)}</span>
+            </div>
+          </div>
+          <div>
+            <div class="feed-pnl ${pending ? 'pend' : h.pnl.cls}">${pending ? 'ACTIVE' : h.pnl.val}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  renderFeed();
+
+  // Add new hunt every ~5s
+  setInterval(() => {
+    const newHunt = generateHunt(0);
+    hunts.unshift(newHunt);
+    if (hunts.length > 20) hunts.pop();
+
+    // resolve pending after 18s
+    setTimeout(() => {
+      newHunt.pnl = randomPnl();
+      newHunt.secondsAgo = 18;
+      renderFeed();
+    }, 18000);
+
+    renderFeed();
+
+    // bump active targets
+    const at = document.getElementById('activeTargets');
+    let v = parseInt(at.textContent);
+    at.textContent = Math.min(v + 1, 12);
+    setTimeout(() => { at.textContent = Math.max(parseInt(at.textContent) - 1, 1); }, 18000);
+  }, 5000);
+
+  // Tick seconds
+  setInterval(() => {
+    hunts.forEach(h => { if (h.secondsAgo !== undefined) h.secondsAgo++; });
+    renderFeed();
+  }, 1000);
+
+  // Uptime wobble
+  setInterval(() => {
+    const vals = ['99.97%','99.98%','99.96%','99.99%'];
+    document.getElementById('uptime').textContent = vals[Math.floor(Math.random()*vals.length)];
+  }, 8000);
+</script>
+</body>
+</html>
